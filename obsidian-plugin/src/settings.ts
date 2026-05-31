@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type ClaudeCompanionPlugin from "./main";
 import { CLAUDE_MODELS } from "./claude/models";
+import type { ProviderStatus } from "./providers/types";
 
 export class ClaudeCompanionSettingTab extends PluginSettingTab {
   constructor(
@@ -30,6 +31,24 @@ export class ClaudeCompanionSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    // Save & Test connection — explicit confirmation that settings are saved
+    // and the key actually works.
+    const claudeStatus = containerEl.createDiv({ cls: "cc-conn-status" });
+    new Setting(containerEl)
+      .setName("Save & test connection")
+      .setDesc("Saves settings and sends a tiny request to verify your Anthropic key.")
+      .addButton((btn) =>
+        btn
+          .setButtonText("Save & test")
+          .setCta()
+          .onClick(async () => {
+            await this.plugin.saveSettings();
+            this.renderStatus(claudeStatus, { ok: true, detail: "Testing…" });
+            const status = await this.plugin.router().anthropic.test();
+            this.renderStatus(claudeStatus, status);
+          }),
+      );
 
     new Setting(containerEl)
       .setName("Model")
@@ -143,5 +162,101 @@ export class ClaudeCompanionSettingTab extends PluginSettingTab {
           }
         }),
       );
+
+    // ---------- local models (Ollama) ----------
+    new Setting(containerEl).setName("Local models (Ollama)").setHeading();
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Run cheap, bulk work — summarizing, tagging, ingestion — on a local model to save Anthropic tokens. Chat and plans still use Claude unless you route them here.",
+    });
+
+    new Setting(containerEl)
+      .setName("Use local model for utility tasks")
+      .setDesc("Summaries, auto-tagging, and ingestion go to Ollama instead of Claude.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.localUtilityEnabled).onChange(async (v) => {
+          this.plugin.settings.localUtilityEnabled = v;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Ollama host")
+      .setDesc("Base URL of your local Ollama server.")
+      .addText((text) =>
+        text.setValue(this.plugin.settings.ollamaHost).onChange(async (v) => {
+          this.plugin.settings.ollamaHost = v.trim() || "http://localhost:11434";
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Local model")
+      .setDesc("Model name as listed by `ollama list` (e.g. llama3.1, qwen2.5, mistral).")
+      .addText((text) =>
+        text.setValue(this.plugin.settings.ollamaModel).onChange(async (v) => {
+          this.plugin.settings.ollamaModel = v.trim() || "llama3.1";
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    const ollamaStatus = containerEl.createDiv({ cls: "cc-conn-status" });
+    new Setting(containerEl)
+      .setName("Test local connection")
+      .setDesc("Checks that Ollama is reachable and lists pulled models.")
+      .addButton((btn) =>
+        btn.setButtonText("Test Ollama").onClick(async () => {
+          await this.plugin.saveSettings();
+          this.renderStatus(ollamaStatus, { ok: true, detail: "Testing…" });
+          this.renderStatus(ollamaStatus, await this.plugin.router().ollama.test());
+        }),
+      );
+
+    // ---------- indexing ----------
+    new Setting(containerEl).setName("Indexing & tags").setHeading();
+
+    new Setting(containerEl)
+      .setName("Auto-tag on save")
+      .setDesc("When saving an artifact or chat, generate topic tags + a one-line summary (uses the utility provider above) so notes are indexed correctly.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.autoTagOnSave).onChange(async (v) => {
+          this.plugin.settings.autoTagOnSave = v;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Artifact base tags")
+      .setDesc("Comma-separated tags every saved artifact gets (for reliable filtering).")
+      .addText((text) =>
+        text.setValue(this.plugin.settings.artifactBaseTags.join(", ")).onChange(async (v) => {
+          this.plugin.settings.artifactBaseTags = splitTags(v);
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Chat base tags")
+      .setDesc("Comma-separated tags every saved chat gets.")
+      .addText((text) =>
+        text.setValue(this.plugin.settings.chatBaseTags.join(", ")).onChange(async (v) => {
+          this.plugin.settings.chatBaseTags = splitTags(v);
+          await this.plugin.saveSettings();
+        }),
+      );
   }
+
+  private renderStatus(el: HTMLElement, status: ProviderStatus): void {
+    el.empty();
+    el.toggleClass("is-ok", status.ok);
+    el.toggleClass("is-err", !status.ok);
+    el.setText((status.ok ? "✓ " : "✗ ") + status.detail);
+  }
+}
+
+function splitTags(v: string): string[] {
+  return v
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }

@@ -36,6 +36,22 @@ export interface PluginSettings {
   maxContextNotes: number;
   /** Default render height (px) for inline `claude-html` artifacts. */
   artifactHeight: number;
+
+  // ----- local models (Ollama) -----
+  /** Base URL of the local Ollama server. */
+  ollamaHost: string;
+  /** Default local model for utility tasks (summaries, tagging). */
+  ollamaModel: string;
+  /** Route cheap "utility" work (summarize/tag/ingest) to Ollama. */
+  localUtilityEnabled: boolean;
+
+  // ----- indexing -----
+  /** Auto-add tags + summary frontmatter when saving artifacts/chats. */
+  autoTagOnSave: boolean;
+  /** Tags every saved artifact gets, for reliable indexing. */
+  artifactBaseTags: string[];
+  /** Tags every saved chat gets. */
+  chatBaseTags: string[];
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -58,6 +74,14 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   contextCharBudget: 24000,
   maxContextNotes: 6,
   artifactHeight: 640,
+
+  ollamaHost: "http://localhost:11434",
+  ollamaModel: "llama3.1",
+  localUtilityEnabled: false,
+
+  autoTagOnSave: true,
+  artifactBaseTags: ["claude", "artifact"],
+  chatBaseTags: ["claude", "chat"],
 };
 
 /** Streaming callbacks for a single Claude request. */

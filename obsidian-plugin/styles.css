@@ -144,11 +144,30 @@
   margin-top: 2px;
 }
 .cc-error {
-  color: var(--text-error);
-  background: var(--background-modifier-error);
+  /* Explicit high-contrast colors so the message is always readable,
+     regardless of theme (don't rely on --text-error/--background-modifier-error,
+     which collapse to low-contrast orange-on-orange in some themes). */
+  color: #5c1a10;
+  background: #fbeae5;
+  border: 1px solid var(--cc-clay);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   font-size: 13px;
+  line-height: 1.5;
+}
+.theme-dark .cc-error {
+  color: #ffd9cc;
+  background: #3a1610;
+}
+.cc-error .cc-error-title {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+.cc-error .cc-error-hint {
+  margin-top: 6px;
+  opacity: 0.85;
+  font-size: 12px;
 }
 
 /* ---------- message actions ---------- */
@@ -230,6 +249,34 @@
 }
 .cc-send.is-stop {
   background: var(--cc-gray-700);
+}
+
+/* ---------- settings: connection status ---------- */
+.cc-conn-status {
+  font-size: 13px;
+  padding: 6px 10px;
+  margin: 4px 0 8px;
+  border-radius: 8px;
+  min-height: 0;
+}
+.cc-conn-status:empty {
+  display: none;
+}
+.cc-conn-status.is-ok {
+  color: #1e5631;
+  background: #e7f4ec;
+}
+.cc-conn-status.is-err {
+  color: #5c1a10;
+  background: #fbeae5;
+}
+.theme-dark .cc-conn-status.is-ok {
+  color: #b7e8c6;
+  background: #16301f;
+}
+.theme-dark .cc-conn-status.is-err {
+  color: #ffd9cc;
+  background: #3a1610;
 }
 
 /* ---------- inline artifacts ---------- */

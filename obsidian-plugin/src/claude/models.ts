@@ -15,11 +15,14 @@ export const CLAUDE_MODELS: ClaudeModel[] = [
     hint: "Balanced default — fast and strong",
   },
   {
-    id: "claude-haiku-4-5",
+    id: "claude-haiku-4-5-20251001",
     label: "Claude Haiku 4.5",
     hint: "Fastest / cheapest — quick edits and Q&A",
   },
 ];
+
+/** A cheap, always-valid model id for connection tests. */
+export const PING_MODEL = "claude-haiku-4-5-20251001";
 
 export function resolveModelId(model: string, customModel: string): string {
   const custom = customModel.trim();

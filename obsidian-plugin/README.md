@@ -12,6 +12,13 @@ belong next to it.
 > **Bring your own key.** Claude Companion talks to the Anthropic Messages API
 > with *your* API key. Nothing is sent anywhere else. Desktop only (it needs
 > direct network access).
+>
+> **Why not “log in with Claude.ai”?** As of 2026 Anthropic prohibits using
+> Free/Pro/Max OAuth tokens in third-party tools (the policy behind the OpenClaw
+> ban). Using them would risk your account and disqualify the plugin from the
+> community store, so Companion uses a standard API key. For a *unified* setup
+> with your Claude Code / claude.ai work, the intended path is a **Claude Code
+> / MCP bridge** (on the roadmap) rather than subscription OAuth.
 
 ## Features
 
@@ -23,6 +30,15 @@ belong next to it.
 - **Beautiful interactive artifacts** — Claude emits a `claude-html` block;
   Companion renders it inline in a sandboxed iframe and can **save it as a
   note** that stays interactive and portable.
+- **Local models (Ollama)** — route cheap, bulk work (summaries, auto-tagging,
+  ingestion) to a local model so Anthropic tokens are reserved for high-level
+  reasoning. Chat and plans can run locally too if you prefer.
+- **Indexing & tags** — saved artifacts and chats get YAML frontmatter
+  (`title`, `tags`, `summary`, `type`) so they show up correctly in the tag
+  pane, search, and Dataview. Optional **auto-tagging** uses the local model to
+  suggest topic tags, reusing your existing vault tags where they fit.
+- **Save & test connection** — one click confirms settings are saved and the
+  key actually works, with readable, actionable errors.
 - **Commands**
   - *Open chat panel*
   - *Generate implementation plan from current note*

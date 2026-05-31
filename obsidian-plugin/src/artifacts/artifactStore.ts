@@ -1,5 +1,6 @@
 import { App, Notice, TFile, normalizePath } from "obsidian";
 import { sanitizeFileName, type ExtractedArtifact } from "./parse";
+import { buildFrontmatter, normalizeTags } from "../indexing/frontmatter";
 
 export { extractArtifact, type ExtractedArtifact } from "./parse";
 
@@ -39,36 +40,43 @@ async function writeUnique(app: App, folder: string, base: string, ext: string, 
  * `claude-html` code-block processor. This keeps the artifact portable,
  * editable, and previewable inside the vault.
  */
-export async function saveArtifactNote(
-  app: App,
-  folder: string,
-  artifact: ExtractedArtifact,
-  height: number,
-): Promise<TFile> {
-  const created = new Date().toISOString();
-  const note = [
-    "---",
-    `created: ${created}`,
-    "source: claude-companion",
-    "type: artifact",
-    "---",
-    "",
-    `# ${artifact.title}`,
-    "",
-    "```claude-html height=" + height,
-    artifact.html,
-    "```",
-    "",
-  ].join("\n");
+export interface SaveOptions {
+  height: number;
+  /** Base tags always applied (e.g. ["claude","artifact"]). */
+  baseTags: string[];
+  /** Extra tags (e.g. auto-generated). */
+  extraTags?: string[];
+  /** Optional one-line summary for frontmatter + search. */
+  summary?: string;
+}
+
+export async function saveArtifactNote(app: App, folder: string, artifact: ExtractedArtifact, opts: SaveOptions): Promise<TFile> {
+  const fm = buildFrontmatter({
+    title: artifact.title,
+    created: new Date().toISOString().slice(0, 10),
+    source: "claude-companion",
+    type: "artifact",
+    summary: opts.summary,
+    tags: normalizeTags([...opts.baseTags, ...(opts.extraTags ?? [])]),
+  });
+  const note = [fm, "", `# ${artifact.title}`, "", "```claude-html height=" + opts.height, artifact.html, "```", ""].join("\n");
   const file = await writeUnique(app, folder, artifact.title, "md", note);
   new Notice(`Saved artifact → ${file.path}`);
   return file;
 }
 
 /** Save a chat transcript as a markdown note. */
-export async function saveChatNote(app: App, folder: string, title: string, markdown: string): Promise<TFile> {
-  const front = ["---", `created: ${new Date().toISOString()}`, "source: claude-companion", "type: chat", "---", "", `# ${title}`, "", markdown, ""].join("\n");
-  const file = await writeUnique(app, folder, title, "md", front);
+export async function saveChatNote(app: App, folder: string, title: string, markdown: string, opts?: Partial<SaveOptions>): Promise<TFile> {
+  const fm = buildFrontmatter({
+    title,
+    created: new Date().toISOString().slice(0, 10),
+    source: "claude-companion",
+    type: "chat",
+    summary: opts?.summary,
+    tags: normalizeTags([...(opts?.baseTags ?? ["claude", "chat"]), ...(opts?.extraTags ?? [])]),
+  });
+  const note = [fm, "", `# ${title}`, "", markdown, ""].join("\n");
+  const file = await writeUnique(app, folder, title, "md", note);
   new Notice(`Saved chat → ${file.path}`);
   return file;
 }

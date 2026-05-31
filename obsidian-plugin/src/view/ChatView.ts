@@ -1,9 +1,10 @@
 import { ItemView, MarkdownRenderer, MarkdownView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import type ClaudeCompanionPlugin from "../main";
 import type { ChatMessage } from "../types";
-import { resolveModelId, modelLabel } from "../claude/models";
+import { modelLabel } from "../claude/models";
 import { gatherContext } from "../context/vaultContext";
 import { extractArtifact, saveArtifactNote, saveChatNote } from "../artifacts/artifactStore";
+import { errorHint } from "../providers/errorHints";
 
 export const CHAT_VIEW_TYPE = "claude-companion-chat";
 
@@ -82,8 +83,9 @@ export class ChatView extends ItemView {
   }
 
   refreshModelLabel(): void {
-    const id = resolveModelId(this.plugin.settings.model, this.plugin.settings.customModel);
-    this.modelLabelEl.setText(modelLabel(id));
+    const { provider, model } = this.plugin.router().chatProvider();
+    const label = provider.id === "ollama" ? `${model} · local` : modelLabel(model);
+    this.modelLabelEl.setText(label);
   }
 
   // ---------- public entry point (used by commands) ----------
@@ -160,9 +162,10 @@ export class ChatView extends ItemView {
   }
 
   private async run(userText: string): Promise<void> {
-    const client = this.plugin.getClient();
-    if (!client.hasKey()) {
-      new Notice("Add your Anthropic API key in Claude Companion settings first.");
+    const { provider, model } = this.plugin.router().chatProvider();
+    if (!provider.hasCredentials()) {
+      const where = provider.id === "ollama" ? "Start Ollama (`ollama serve`) or set the host in settings." : "Add your Anthropic API key in Claude Companion settings first.";
+      new Notice(where);
       return;
     }
 
@@ -191,11 +194,11 @@ export class ChatView extends ItemView {
       this.scrollToBottom();
     };
 
-    await client.stream(
+    await provider.stream(
       {
         system: this.plugin.composeSystemPrompt(),
         messages: apiMessages,
-        model: resolveModelId(this.plugin.settings.model, this.plugin.settings.customModel),
+        model,
         maxTokens: this.plugin.settings.maxTokens,
         signal: this.abort.signal,
       },
@@ -208,8 +211,7 @@ export class ChatView extends ItemView {
           }
         },
         onError: (err) => {
-          body.empty();
-          body.createDiv({ cls: "cc-error", text: err.message });
+          this.renderError(body, err.message);
           this.finishAssistant(null, bubble);
         },
         onDone: (full) => {
@@ -253,6 +255,15 @@ export class ChatView extends ItemView {
     this.scrollToBottom();
   }
 
+  private renderError(body: HTMLElement, message: string): void {
+    body.empty();
+    const box = body.createDiv({ cls: "cc-error" });
+    box.createSpan({ cls: "cc-error-title", text: "Couldn’t reach the model" });
+    box.createSpan({ text: message });
+    const hint = errorHint(message);
+    if (hint) box.createDiv({ cls: "cc-error-hint", text: hint });
+  }
+
   private annotateContext(sources: string[]): void {
     if (sources.length === 0) return;
     const last = this.messagesEl.lastElementChild;
@@ -274,15 +285,33 @@ export class ChatView extends ItemView {
     this.actionBtn(bar, "Insert", () => this.insertIntoNote(full));
     this.actionBtn(bar, "Save as note", async () => {
       const title = full.split("\n").find((l) => l.trim())?.replace(/^#+\s*/, "").slice(0, 60) ?? "Claude reply";
-      await saveChatNote(this.app, this.plugin.settings.chatFolder, title, full);
+      const extraTags = await this.maybeAutoTags(full);
+      await saveChatNote(this.app, this.plugin.settings.chatFolder, title, full, { baseTags: this.plugin.settings.chatBaseTags, extraTags });
     });
     const artifact = extractArtifact(full);
     if (artifact) {
       const btn = this.actionBtn(bar, "Save artifact", async () => {
-        const file = await saveArtifactNote(this.app, this.plugin.settings.artifactFolder, artifact, this.plugin.settings.artifactHeight);
+        const extraTags = await this.maybeAutoTags(`${artifact.title}\n\n${full}`);
+        const file = await saveArtifactNote(this.app, this.plugin.settings.artifactFolder, artifact, {
+          height: this.plugin.settings.artifactHeight,
+          baseTags: this.plugin.settings.artifactBaseTags,
+          extraTags,
+        });
         await this.app.workspace.getLeaf(true).openFile(file);
       });
       btn.addClass("cc-accent");
+    }
+  }
+
+  /** Generate tags via the utility provider when auto-tagging is on. */
+  private async maybeAutoTags(content: string): Promise<string[]> {
+    if (!this.plugin.settings.autoTagOnSave) return [];
+    try {
+      const { summarizeAndTag, existingVaultTags } = await import("../indexing/autoTagger");
+      const res = await summarizeAndTag(this.app, this.plugin.router(), content, existingVaultTags(this.app));
+      return res.tags;
+    } catch {
+      return []; // tagging is best-effort; never block a save
     }
   }
 
@@ -309,7 +338,8 @@ export class ChatView extends ItemView {
     }
     const md = this.messages.map((m) => `**${m.role === "user" ? "You" : "Claude"}:**\n\n${m.content}`).join("\n\n---\n\n");
     const title = this.messages[0].content.split("\n")[0].slice(0, 60) || "Claude chat";
-    await saveChatNote(this.app, this.plugin.settings.chatFolder, title, md);
+    const extraTags = await this.maybeAutoTags(md);
+    await saveChatNote(this.app, this.plugin.settings.chatFolder, title, md, { baseTags: this.plugin.settings.chatBaseTags, extraTags });
   }
 
   private scrollToBottom(): void {

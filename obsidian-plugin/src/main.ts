@@ -1,14 +1,14 @@
 import { MarkdownView, Notice, Plugin, WorkspaceLeaf } from "obsidian";
 import { ChatView, CHAT_VIEW_TYPE } from "./view/ChatView";
 import { ClaudeCompanionSettingTab } from "./settings";
-import { ClaudeClient } from "./claude/client";
+import { ProviderRouter } from "./providers/router";
 import { DEFAULT_SETTINGS, type PluginSettings } from "./types";
 import { DESIGN_SYSTEM_PROMPT, PLANNING_INSTRUCTION } from "./artifacts/designSystem";
 import { renderArtifactInline } from "./artifacts/renderInline";
 
 export default class ClaudeCompanionPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
-  private client: ClaudeClient | null = null;
+  private _router: ProviderRouter | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -96,8 +96,9 @@ export default class ClaudeCompanionPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
-    // Rebuild the client if the key changed.
-    this.client = null;
+    // Rebuild providers if any credentials/hosts changed.
+    this._router = null;
+    this.refreshViews();
   }
 
   refreshViews(): void {
@@ -107,11 +108,11 @@ export default class ClaudeCompanionPlugin extends Plugin {
     }
   }
 
-  // ---------- client ----------
+  // ---------- providers ----------
 
-  getClient(): ClaudeClient {
-    if (!this.client) this.client = new ClaudeClient(this.settings.apiKey);
-    return this.client;
+  router(): ProviderRouter {
+    if (!this._router) this._router = new ProviderRouter(this.settings);
+    return this._router;
   }
 
   composeSystemPrompt(): string {
