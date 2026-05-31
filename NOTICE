@@ -1,0 +1,29 @@
+claude-obsidian / Claude Companion
+==================================
+
+This project builds on and is inspired by prior work. We are grateful to the
+authors below.
+
+-------------------------------------------------------------------------------
+"HTML is all you need to make effective reports/dashboards"
+Author: Thariq Shihipar
+Source: https://github.com/sasan1200/html-effectiveness (forked); originally
+        published by Thariq Shihipar as a companion to his write-up on using
+        HTML as an output format for Claude.
+License: MIT (see LICENSE.md, Copyright (c) 2026 Thariq Shihipar)
+-------------------------------------------------------------------------------
+
+How we use it
+-------------
+- The artifact *design system* (color palette, typography, layout conventions,
+  and the "single self-contained HTML document" approach) is distilled from
+  Thariq's prompt and examples. Our implementation
+  (obsidian-plugin/src/artifacts/designSystem.ts and the claude-plugin
+  note-to-artifact skill) is an original reformulation — it expresses the same
+  aesthetic in our own prompt/code, and is NOT a copy of the original HTML files.
+- Thariq's original HTML set is treated as an upstream reference. Project-
+  specific additions belong in `design-system/extensions/` as additive layers,
+  so the original set is never modified in place and remains clearly his work.
+
+If you are Thariq and would like attribution changed or removed, please open an
+issue on the repository.
