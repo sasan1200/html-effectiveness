@@ -61,13 +61,14 @@ export class AnthropicProvider implements Provider {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const { text, remainder, error } = parseSseChunk(buffer);
+        const { text, remainder, error, usage } = parseSseChunk(buffer);
         buffer = remainder;
         if (error) throw new ProviderError(error);
         if (text) {
           full += text;
           handlers.onText(text);
         }
+        if (usage) handlers.onUsage?.(usage);
       }
       handlers.onDone?.(full);
     } catch (err) {

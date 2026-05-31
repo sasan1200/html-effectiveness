@@ -234,8 +234,44 @@
   font-size: 14px;
   border-radius: 8px;
 }
+/* usage bar: context gauge + session totals */
+.cc-usage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cc-gauge {
+  flex: 0 0 64px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--cc-gray-300);
+  overflow: hidden;
+}
+.cc-gauge-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--olive, #788c5d);
+  transition: width 0.2s ease;
+}
+.cc-gauge-fill.is-warn {
+  background: var(--cc-clay);
+}
+.cc-gauge-fill.is-danger {
+  background: #c0392b;
+}
+.cc-usage-text {
+  font-family: var(--cc-mono);
+  font-size: 10.5px;
+  color: var(--cc-gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cc-send-row {
+  display: flex;
+  justify-content: flex-end;
+}
 .cc-send {
-  align-self: flex-end;
   padding: 6px 18px;
   border-radius: 8px;
   background: var(--cc-clay);

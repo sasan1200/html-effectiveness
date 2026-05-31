@@ -5,6 +5,7 @@ import { modelLabel } from "../claude/models";
 import { gatherContext } from "../context/vaultContext";
 import { extractArtifact, saveArtifactNote, saveChatNote } from "../artifacts/artifactStore";
 import { errorHint } from "../providers/errorHints";
+import { addUsage, contextGauge, EMPTY_SESSION, estimateTokens, formatCost, formatTokens, sessionCost, type SessionUsage } from "../usage/tokens";
 
 export const CHAT_VIEW_TYPE = "claude-companion-chat";
 
@@ -14,8 +15,11 @@ export class ChatView extends ItemView {
   private inputEl!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
   private modelLabelEl!: HTMLElement;
+  private usageEl!: HTMLElement;
+  private gaugeFillEl!: HTMLElement;
   private streaming = false;
   private abort: AbortController | null = null;
+  private session: SessionUsage = { ...EMPTY_SESSION };
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -71,11 +75,59 @@ export class ChatView extends ItemView {
         this.onSend();
       }
     });
-    this.sendBtn = composer.createEl("button", { cls: "cc-send", text: "Send" });
+    this.inputEl.addEventListener("input", () => this.updateUsageBar());
+
+    // ---- usage bar: context gauge + session totals ----
+    const usageRow = composer.createDiv({ cls: "cc-usage" });
+    const gauge = usageRow.createDiv({ cls: "cc-gauge", attr: { "aria-label": "Estimated context window used" } });
+    this.gaugeFillEl = gauge.createDiv({ cls: "cc-gauge-fill" });
+    this.usageEl = usageRow.createDiv({ cls: "cc-usage-text" });
+
+    const sendRow = composer.createDiv({ cls: "cc-send-row" });
+    this.sendBtn = sendRow.createEl("button", { cls: "cc-send", text: "Send" });
     this.sendBtn.addEventListener("click", () => this.onSend());
 
     this.refreshModelLabel();
     this.renderEmptyState();
+    this.updateUsageBar();
+  }
+
+  /**
+   * Recompute the context gauge (estimated input + reserved output vs the
+   * model's window) and render the running session totals. Called on input,
+   * after each response, and when the model changes.
+   */
+  private updateUsageBar(): void {
+    const { provider, model } = this.plugin.router().chatProvider();
+    const reserved = this.plugin.settings.maxTokens;
+
+    // Estimate input tokens: system + conversation so far + the draft + a
+    // rough allowance for the vault context that will be attached.
+    const convo = this.messages.map((m) => m.content).join("\n");
+    const draft = this.inputEl?.value ?? "";
+    const ctxAllowance = this.anyContextEnabled() ? this.plugin.settings.contextCharBudget : 0;
+    const estIn = estimateTokens(this.plugin.composeSystemPrompt()) + estimateTokens(convo) + estimateTokens(draft) + estimateTokens("x".repeat(ctxAllowance));
+
+    const g = contextGauge(estIn, model, reserved);
+    this.gaugeFillEl.style.width = `${Math.round(g.fraction * 100)}%`;
+    this.gaugeFillEl.toggleClass("is-warn", g.fraction >= 0.75 && g.fraction < 0.92);
+    this.gaugeFillEl.toggleClass("is-danger", g.fraction >= 0.92);
+
+    const parts: string[] = [];
+    if (provider.id === "ollama") {
+      parts.push(`~${formatTokens(estIn)} ctx · local (no metered cost)`);
+    } else {
+      parts.push(`~${formatTokens(estIn)} / ${formatTokens(g.window)} ctx`);
+      if (this.session.requests > 0) {
+        parts.push(`session ${formatTokens(this.session.inputTokens)}↑ ${formatTokens(this.session.outputTokens)}↓ ≈ ${formatCost(sessionCost(this.session, model))}`);
+      }
+    }
+    this.usageEl.setText(parts.join("  ·  "));
+  }
+
+  private anyContextEnabled(): boolean {
+    const c = this.plugin.settings.context;
+    return c.activeNote || c.selection || c.linkedNotes || c.searchVault;
   }
 
   async onClose(): Promise<void> {
@@ -86,6 +138,7 @@ export class ChatView extends ItemView {
     const { provider, model } = this.plugin.router().chatProvider();
     const label = provider.id === "ollama" ? `${model} · local` : modelLabel(model);
     this.modelLabelEl.setText(label);
+    if (this.usageEl) this.updateUsageBar();
   }
 
   // ---------- public entry point (used by commands) ----------
@@ -130,9 +183,11 @@ export class ChatView extends ItemView {
     this.abort?.abort();
     this.streaming = false;
     this.messages = [];
+    this.session = { ...EMPTY_SESSION };
     this.messagesEl.empty();
     this.renderEmptyState();
     this.setSending(false);
+    this.updateUsageBar();
   }
 
   private openSettings(): void {
@@ -214,6 +269,9 @@ export class ChatView extends ItemView {
           this.renderError(body, err.message);
           this.finishAssistant(null, bubble);
         },
+        onUsage: (usage) => {
+          this.session = addUsage(this.session, usage);
+        },
         onDone: (full) => {
           buffer = full;
           void this.renderMarkdownInto(body, full).then(() => this.finishAssistant(full, bubble));
@@ -232,6 +290,7 @@ export class ChatView extends ItemView {
       this.messages.push({ role: "assistant", content: full });
       this.addAssistantActions(bubble, full);
     }
+    this.updateUsageBar();
     this.scrollToBottom();
   }
 

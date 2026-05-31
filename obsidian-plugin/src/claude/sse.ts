@@ -5,6 +5,16 @@ export interface SseEvent {
   type: string;
   delta?: { type?: string; text?: string };
   error?: { message?: string };
+  // Usage appears on message_start (input/cache tokens) and message_delta (output).
+  message?: { usage?: TokenUsage };
+  usage?: TokenUsage;
+}
+
+export interface TokenUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
 }
 
 export interface SseParseResult {
@@ -14,6 +24,8 @@ export interface SseParseResult {
   remainder: string;
   /** Set if an `error` event was encountered. */
   error?: string;
+  /** Token usage seen in this chunk, merged across events. */
+  usage?: TokenUsage;
 }
 
 /**
@@ -24,6 +36,7 @@ export interface SseParseResult {
 export function parseSseChunk(buffer: string): SseParseResult {
   let text = "";
   let error: string | undefined;
+  let usage: TokenUsage | undefined;
   let nl: number;
   while ((nl = buffer.indexOf("\n")) !== -1) {
     const line = buffer.slice(0, nl).trim();
@@ -42,8 +55,21 @@ export function parseSseChunk(buffer: string): SseParseResult {
     } else if (evt.type === "error") {
       error = evt.error?.message ?? "Streaming error from Anthropic API";
     }
+    // Merge any usage carried on this event (message_start / message_delta).
+    const u = evt.message?.usage ?? evt.usage;
+    if (u) usage = mergeUsage(usage, u);
   }
-  return { text, remainder: buffer, error };
+  return { text, remainder: buffer, error, usage };
+}
+
+/** Merge two partial usage records, preferring later non-undefined values. */
+export function mergeUsage(a: TokenUsage | undefined, b: TokenUsage): TokenUsage {
+  return {
+    input_tokens: b.input_tokens ?? a?.input_tokens,
+    output_tokens: b.output_tokens ?? a?.output_tokens,
+    cache_read_input_tokens: b.cache_read_input_tokens ?? a?.cache_read_input_tokens,
+    cache_creation_input_tokens: b.cache_creation_input_tokens ?? a?.cache_creation_input_tokens,
+  };
 }
 
 /** Turn an Anthropic error response body + status into a readable message. */

@@ -32,7 +32,11 @@ belong next to it.
   note** that stays interactive and portable.
 - **Local models (Ollama)** — route cheap, bulk work (summaries, auto-tagging,
   ingestion) to a local model so Anthropic tokens are reserved for high-level
-  reasoning. Chat and plans can run locally too if you prefer.
+  reasoning. Chat and plans can run locally too if you prefer. Settings can
+  **auto-detect** the models installed on your Ollama server.
+- **Live usage display** — the chat shows a context-window gauge (how full the
+  prompt is getting) plus running **session token totals and an estimated cost**
+  when using an API key, so there are no billing surprises.
 - **Indexing & tags** — saved artifacts and chats get YAML frontmatter
   (`title`, `tags`, `summary`, `type`) so they show up correctly in the tag
   pane, search, and Dataview. Optional **auto-tagging** uses the local model to

@@ -107,4 +107,6 @@ export interface StreamHandlers {
   onText: (delta: string) => void;
   onDone?: (full: string) => void;
   onError?: (err: Error) => void;
+  /** Token usage reported by the provider (Anthropic only). */
+  onUsage?: (usage: import("./claude/sse").TokenUsage) => void;
 }

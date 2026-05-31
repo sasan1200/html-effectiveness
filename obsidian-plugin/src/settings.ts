@@ -1,10 +1,13 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type ClaudeCompanionPlugin from "./main";
 import { CLAUDE_MODELS } from "./claude/models";
 import type { ProviderStatus } from "./providers/types";
 import { generateToken, bridgeUrl, claudeCodeCommand, claudeDesktopConfig } from "./mcp/clientConfig";
 
 export class ClaudeCompanionSettingTab extends PluginSettingTab {
+  /** Cached list of Ollama models from the last Detect, for the dropdown. */
+  private detectedOllamaModels: string[] | null = null;
+
   constructor(
     app: App,
     private plugin: ClaudeCompanionPlugin,
@@ -191,15 +194,52 @@ export class ClaudeCompanionSettingTab extends PluginSettingTab {
         }),
       );
 
-    new Setting(containerEl)
+    // Local model: a dropdown auto-populated from the Ollama server when
+    // models have been detected, otherwise a free-text field.
+    const modelSetting = new Setting(containerEl)
       .setName("Local model")
-      .setDesc("Model name as listed by `ollama list` (e.g. llama3.1, qwen2.5, mistral).")
-      .addText((text) =>
+      .setDesc("Choose a detected model, or type one (e.g. llama3.1, qwen2.5). Click Detect to refresh the list.");
+
+    const detected = this.detectedOllamaModels;
+    if (detected && detected.length > 0) {
+      modelSetting.addDropdown((dd) => {
+        for (const m of detected) dd.addOption(m, m);
+        // Keep the current value selectable even if not in the detected list.
+        if (!detected.includes(this.plugin.settings.ollamaModel)) dd.addOption(this.plugin.settings.ollamaModel, `${this.plugin.settings.ollamaModel} (current)`);
+        dd.setValue(this.plugin.settings.ollamaModel).onChange(async (v) => {
+          this.plugin.settings.ollamaModel = v;
+          await this.plugin.saveSettings();
+        });
+      });
+    } else {
+      modelSetting.addText((text) =>
         text.setValue(this.plugin.settings.ollamaModel).onChange(async (v) => {
           this.plugin.settings.ollamaModel = v.trim() || "llama3.1";
           await this.plugin.saveSettings();
         }),
       );
+    }
+    modelSetting.addButton((btn) =>
+      btn
+        .setButtonText("Detect")
+        .setTooltip("Query the Ollama server for installed models")
+        .onClick(async () => {
+          await this.plugin.saveSettings();
+          btn.setButtonText("Detecting…").setDisabled(true);
+          const models = await this.plugin.router().ollama.listModels();
+          this.detectedOllamaModels = models;
+          if (models.length === 0) {
+            new Notice("No Ollama models detected. Is `ollama serve` running, and have you pulled a model?");
+          } else {
+            if (!models.includes(this.plugin.settings.ollamaModel)) {
+              this.plugin.settings.ollamaModel = models[0];
+              await this.plugin.saveSettings();
+            }
+            new Notice(`Detected ${models.length} model(s).`);
+          }
+          this.display(); // re-render so the dropdown appears/updates
+        }),
+    );
 
     const ollamaStatus = containerEl.createDiv({ cls: "cc-conn-status" });
     new Setting(containerEl)
