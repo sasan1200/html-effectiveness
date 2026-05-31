@@ -37,6 +37,9 @@ belong next to it.
 - **Live usage display** — the chat shows a context-window gauge (how full the
   prompt is getting) plus running **session token totals and an estimated cost**
   when using an API key, so there are no billing surprises.
+- **Spec → build handoff** — turn a plan note into a **build spec** + a live
+  **tracker** (a `claude-html` progress board), and hand it to **Claude Code**:
+  it reads the spec and updates the tracker through the MCP bridge as it builds.
 - **Indexing & tags** — saved artifacts and chats get YAML frontmatter
   (`title`, `tags`, `summary`, `type`) so they show up correctly in the tag
   pane, search, and Dataview. Optional **auto-tagging** uses the local model to

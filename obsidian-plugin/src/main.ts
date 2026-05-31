@@ -7,6 +7,10 @@ import { DESIGN_SYSTEM_PROMPT, PLANNING_INSTRUCTION } from "./artifacts/designSy
 import { renderArtifactInline } from "./artifacts/renderInline";
 import { McpHttpServer } from "./mcp/server";
 import { VaultTools } from "./mcp/vaultTools";
+import { extractTasks, specBody, claudeCodeBuildCommand, type SpecInput } from "./build/spec";
+import { trackerArtifact } from "./build/tracker";
+import { buildFrontmatter, normalizeTags } from "./indexing/frontmatter";
+import { normalizePath, TFile } from "obsidian";
 
 export default class ClaudeCompanionPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
@@ -77,6 +81,17 @@ export default class ClaudeCompanionPlugin extends Plugin {
         const view = await this.activateView();
         view?.refreshModelLabel();
         new Notice("Vault search is on — ask your question in the chat panel.");
+      },
+    });
+
+    this.addCommand({
+      id: "build-from-plan",
+      name: "Hand off current note to Claude Code (build)",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+        if (checking) return !!file;
+        void this.handoffToBuild();
+        return true;
       },
     });
 
@@ -187,6 +202,75 @@ export default class ClaudeCompanionPlugin extends Plugin {
     const view = await this.activateView();
     if (!view) return;
     await view.submitPrompt(`${PLANNING_INSTRUCTION}\n\nBase the plan entirely on the content of my current note.`);
+  }
+
+  /**
+   * Turn the active note (an implementation plan) into a build spec + a live
+   * tracker note, then hand it to Claude Code. Claude Code reaches the vault
+   * through the MCP bridge and updates the tracker as it builds.
+   */
+  private async handoffToBuild(): Promise<void> {
+    const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+    if (!(file instanceof TFile)) {
+      new Notice("Open a plan note first.");
+      return;
+    }
+    const plan = await this.app.vault.cachedRead(file);
+    const tasks = extractTasks(plan);
+    if (tasks.length === 0) {
+      new Notice("No tasks/milestones found in this note to build from.");
+      return;
+    }
+
+    const title = file.basename;
+    const folder = this.settings.mcpWriteFolder || "Claude/Builds";
+    await this.ensureFolder(folder);
+    const specPath = normalizePath(`${folder}/${title} — spec.md`);
+    const trackerPath = normalizePath(`${folder}/${title} — tracker.md`);
+
+    const input: SpecInput = { title, plan, specPath, trackerPath, tasks };
+
+    // Spec note.
+    const specFm = buildFrontmatter({ title: `${title} — spec`, created: new Date().toISOString().slice(0, 10), source: "claude-companion", type: "build-spec", tags: normalizeTags(["claude", "build", "spec"]) });
+    await this.writeOrReplace(specPath, `${specFm}\n\n${specBody(input)}`);
+
+    // Tracker note (an updating claude-html artifact + a checklist Claude Code appends to).
+    const trackerFm = buildFrontmatter({ title: `${title} — tracker`, created: new Date().toISOString().slice(0, 10), source: "claude-companion", type: "build-tracker", tags: normalizeTags(["claude", "build", "tracker"]) });
+    const trackerBody = [trackerFm, "", `# ${title} — build tracker`, "", "```claude-html height=520", trackerArtifact(title, tasks), "```", "", "## Progress log", "", "<!-- Claude Code appends progress here -->", ""].join("\n");
+    const trackerFile = await this.writeOrReplace(trackerPath, trackerBody);
+
+    // Hand off: copy the ready-to-run command, open the tracker.
+    const command = claudeCodeBuildCommand(input);
+    await navigator.clipboard.writeText(command).catch(() => {});
+    await this.app.workspace.getLeaf(true).openFile(trackerFile);
+
+    const mcpNote = this.settings.mcpEnabled ? "" : " (enable the MCP bridge in settings so Claude Code can read/write the vault)";
+    new Notice(`Build spec + tracker created. Claude Code command copied to clipboard${mcpNote}.`, 8000);
+  }
+
+  private async ensureFolder(folder: string): Promise<void> {
+    const p = normalizePath(folder);
+    if (p === "" || p === "/" || this.app.vault.getAbstractFileByPath(p)) return;
+    let cur = "";
+    for (const part of p.split("/")) {
+      cur = cur ? `${cur}/${part}` : part;
+      if (!this.app.vault.getAbstractFileByPath(cur)) {
+        try {
+          await this.app.vault.createFolder(cur);
+        } catch {
+          /* race */
+        }
+      }
+    }
+  }
+
+  private async writeOrReplace(path: string, content: string): Promise<TFile> {
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) {
+      await this.app.vault.modify(existing, content);
+      return existing;
+    }
+    return this.app.vault.create(path, content);
   }
 
   private async generateArtifactFromContext(): Promise<void> {
