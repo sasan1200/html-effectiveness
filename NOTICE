@@ -6,11 +6,12 @@ authors below.
 
 -------------------------------------------------------------------------------
 "HTML is all you need to make effective reports/dashboards"
-Author: Thariq Shihipar
-Source: https://github.com/sasan1200/html-effectiveness (forked); originally
-        published by Thariq Shihipar as a companion to his write-up on using
-        HTML as an output format for Claude.
-License: MIT (see LICENSE.md, Copyright (c) 2026 Thariq Shihipar)
+Author: Thariq Shihipar (thariq@anthropic.com)
+Source: originally published by Thariq Shihipar as a companion to his write-up
+        on using HTML as an output format for Claude; forked here from
+        sasan1200/html-effectiveness.
+License: MIT — see ./LICENSE in this repository,
+        Copyright (c) 2026 Anthropic PBC.
 -------------------------------------------------------------------------------
 
 How we use it
