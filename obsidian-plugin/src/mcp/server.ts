@@ -76,8 +76,7 @@ export class McpHttpServer {
       return;
     }
 
-    const url = req.url ?? "/";
-    if (!url.startsWith("/mcp")) {
+    if (!(req.url ?? "/").startsWith("/mcp")) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Not found. Use POST /mcp." }));
       return;

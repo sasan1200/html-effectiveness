@@ -83,6 +83,43 @@ CI runs all four on every push/PR (Node 20 & 22) via
       opens it in a new window.
 - [ ] Invalid key surfaces a friendly error instead of failing silently.
 
+## Unified bridge (MCP server)
+
+Companion can expose your vault as a local **MCP server**, so **Claude Code** and
+**Claude Desktop** work against the *same* knowledge base you chat with here —
+the compliant way to unify all three without subscription OAuth.
+
+Enable it in *Settings → Claude Companion → Unified bridge (MCP server)*. It:
+
+- binds to **127.0.0.1 only** (never the network) and requires a **bearer token**;
+- exposes read tools always (`vault_search`, `note_read`, `list_recent`,
+  `vault_tags`) and, when *Allow writes* is on, `note_create` / `note_append`;
+- shows ready-to-paste connection snippets for both clients.
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http obsidian-vault \
+  http://127.0.0.1:22360/mcp --header "Authorization: Bearer <token>"
+```
+
+**Claude Desktop** (`claude_desktop_config.json`, via `mcp-remote`):
+
+```json
+{
+  "mcpServers": {
+    "obsidian-vault": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://127.0.0.1:22360/mcp",
+               "--header", "Authorization: Bearer <token>"]
+    }
+  }
+}
+```
+
+Now ask Claude Code "search my vault for X" or "create a note summarizing this"
+and it operates directly on your Obsidian notes.
+
 ## How artifacts work
 
 When Claude returns a fenced ```` ```claude-html ```` block, Companion renders
