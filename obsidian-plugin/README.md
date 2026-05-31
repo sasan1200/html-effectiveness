@@ -52,6 +52,7 @@ belong next to it.
   - *Generate implementation plan from current note*
   - *Turn selection / note into a beautiful artifact*
   - *Ask Claude about my vault (search-augmented)*
+  - *Hand off current note to Claude Code (build)*
 
 ## Install (manual / for now)
 
@@ -154,15 +155,46 @@ You can author these by hand too:
 ```
 ````
 
-## Releasing to the community store (notes)
+## Releasing to the community store
 
 This plugin currently lives inside the `html-effectiveness` repo for
-convenience. To submit to Obsidian's community catalog it should be extracted
-into its own repository (the build output `main.js` + `manifest.json` +
-`styles.css` attached to a GitHub release). Also review the plugin **name** —
-Obsidian's guidelines ask you to avoid trademarks you don't own, so a release
-name like *“Companion for Claude”* may be more appropriate.
+development. Submitting to Obsidian's community catalog means extracting it into
+its own public repo and following the checklist below.
+
+**Extraction**
+- [ ] New public repo (e.g. `obsidian-claude-companion`) containing the contents
+      of this `obsidian-plugin/` folder at its root.
+- [ ] `LICENSE` at the repo root (included here — MIT).
+- [ ] `.gitignore` excludes `node_modules/`; **`main.js` is committed/attached**
+      (the store serves the built file, not the source).
+
+**Manifest & versioning** (keep these three in lockstep)
+- [ ] `manifest.json` `version` (currently `0.4.0`) matches the git tag.
+- [ ] `versions.json` maps that version → `minAppVersion` (`1.5.0`).
+- [ ] `package.json` `version` matches.
+
+**GitHub release**
+- [ ] Tag the release with the **exact** version number, no `v` prefix
+      (`0.4.0`, not `v0.4.0`).
+- [ ] Attach `main.js`, `manifest.json`, and `styles.css` as individual binary
+      assets (not just the source zip).
+
+**Catalog PR** (to `obsidianmd/obsidian-releases`)
+- [ ] Add an entry to `community-plugins.json` with `id`, `name`, `author`,
+      `description`, and the new repo path.
+- [ ] First-time submissions go through Obsidian's automated + manual review.
+
+**Naming / trademark**
+- [ ] Review the plugin **name**. Obsidian's policy asks you to avoid trademarks
+      you don't own; "Claude" is Anthropic's. A store-safe name such as
+      *"Companion for Claude"* keeps the `claude-companion` id while making the
+      third-party relationship clear. (Not yet changed — decide before tagging.)
+
+**Pre-submit sanity**
+- [ ] `npm run build` produces a fresh `main.js`.
+- [ ] `npm test` green; `npm run typecheck` and `npm run lint` clean.
+- [ ] Screenshots/GIF in the README (store listings render it).
 
 ## License
 
-MIT — see [`../LICENSE`](../LICENSE).
+MIT — see [`LICENSE`](LICENSE).
