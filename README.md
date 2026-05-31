@@ -24,6 +24,14 @@ numbered file directly in a browser.
 There is nothing to install or build. Clone the repo and open `index.html` (or
 any individual file) in a web browser.
 
+## Claude Companion (Obsidian plugin)
+
+The [`obsidian-plugin/`](obsidian-plugin/) folder contains **Claude Companion**, a
+community Obsidian plugin that brings this gallery's design language into your
+vault: chat with Claude using your notes as context, and have it generate the
+same kind of interactive HTML artifacts — rendered inline and saved back into
+your notes. See [`obsidian-plugin/README.md`](obsidian-plugin/README.md).
+
 ## A note on sample data
 
 All product names, data, and scenarios in these examples are fictional and used
