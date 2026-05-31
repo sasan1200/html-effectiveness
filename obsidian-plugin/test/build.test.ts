@@ -54,7 +54,13 @@ describe("buildPrompt / claudeCodeBuildCommand", () => {
   it("escapes quotes for a shell-safe -p argument", () => {
     const cmd = claudeCodeBuildCommand(input);
     expect(cmd.startsWith('claude -p "')).toBe(true);
-    expect(cmd).not.toMatch(/[^\\]"[^"]*"[^"]*"/); // no unescaped inner quotes breaking the arg
+    expect(cmd.endsWith('"')).toBe(true);
+    // Strip the `claude -p "` wrapper and trailing `"`, then assert every inner
+    // double-quote is backslash-escaped (no bare `"` remains once `\"` is removed).
+    const inner = cmd.slice('claude -p "'.length, -1);
+    expect(inner.replace(/\\"/g, "")).not.toContain('"');
+    // And the prompt did contain quotes to begin with (so this is a real check).
+    expect(inner).toContain('\\"');
   });
 });
 
