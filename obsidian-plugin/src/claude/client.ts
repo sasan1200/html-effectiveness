@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
 import type { ChatMessage, StreamHandlers } from "../types";
+import { parseSseChunk, extractApiError } from "./sse";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
@@ -83,27 +84,12 @@ export class ClaudeClient {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) !== -1) {
-          const line = buffer.slice(0, nl).trim();
-          buffer = buffer.slice(nl + 1);
-          if (!line.startsWith("data:")) continue;
-          const payload = line.slice(5).trim();
-          if (payload === "[DONE]" || payload.length === 0) continue;
-
-          let evt: SseEvent;
-          try {
-            evt = JSON.parse(payload) as SseEvent;
-          } catch {
-            continue;
-          }
-          if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
-            full += evt.delta.text;
-            handlers.onText(evt.delta.text);
-          } else if (evt.type === "error") {
-            throw new ClaudeError(evt.error?.message ?? "Streaming error from Anthropic API");
-          }
+        const { text, remainder, error } = parseSseChunk(buffer);
+        buffer = remainder;
+        if (error) throw new ClaudeError(error);
+        if (text) {
+          full += text;
+          handlers.onText(text);
         }
       }
       handlers.onDone?.(full);
@@ -140,28 +126,10 @@ export class ClaudeClient {
   }
 }
 
-interface SseEvent {
-  type: string;
-  delta?: { type?: string; text?: string };
-  error?: { message?: string };
-}
-
 interface MessageResponse {
   content?: Array<{ type: string; text?: string }>;
 }
 
 function isAbort(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";
-}
-
-function extractApiError(text: string, status: number): string {
-  try {
-    const parsed = JSON.parse(text) as { error?: { message?: string } };
-    if (parsed.error?.message) return `Anthropic API ${status}: ${parsed.error.message}`;
-  } catch {
-    /* ignore */
-  }
-  if (status === 401) return "Anthropic API 401: invalid API key.";
-  if (status === 429) return "Anthropic API 429: rate limited — slow down or check your plan.";
-  return `Anthropic API error ${status}.`;
 }

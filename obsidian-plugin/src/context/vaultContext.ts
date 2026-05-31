@@ -1,5 +1,6 @@
 import { App, MarkdownView, TFile, getAllTags } from "obsidian";
 import type { ContextToggles, PluginSettings } from "../types";
+import { clip, scoreContent, section, snippetAround, tokenize } from "./search";
 
 export interface GatheredContext {
   text: string;
@@ -75,16 +76,6 @@ export async function gatherContext(app: App, settings: PluginSettings, toggles:
   return { text, sources };
 }
 
-function section(title: string, body: string): string {
-  return `### ${title}\n${body}`;
-}
-
-function clip(text: string, max: number): string {
-  if (max <= 0) return "";
-  if (text.length <= max) return text;
-  return text.slice(0, max) + "\n…[truncated]";
-}
-
 function collectLinkedFiles(app: App, file: TFile, limit: number): TFile[] {
   const out: TFile[] = [];
   const seen = new Set<string>([file.path]);
@@ -126,30 +117,11 @@ async function searchVault(app: App, query: string, limit: number, excludePath: 
 
   for (const file of files) {
     if (file.path === excludePath) continue;
-    let score = 0;
 
-    // Path / title matches are strong signals.
-    const lowerPath = file.path.toLowerCase();
-    for (const t of terms) if (lowerPath.includes(t)) score += 3;
-
-    // Tag matches.
     const cache = app.metadataCache.getFileCache(file);
-    if (cache) {
-      const tags = (getAllTags(cache) ?? []).join(" ").toLowerCase();
-      for (const t of terms) if (tags.includes(t)) score += 2;
-    }
-
+    const lowerTags = cache ? (getAllTags(cache) ?? []).join(" ").toLowerCase() : "";
     const content = await app.vault.cachedRead(file);
-    const lower = content.toLowerCase();
-    let firstIdx = -1;
-    for (const t of terms) {
-      let idx = lower.indexOf(t);
-      while (idx !== -1) {
-        score += 1;
-        if (firstIdx === -1 || idx < firstIdx) firstIdx = idx;
-        idx = lower.indexOf(t, idx + t.length);
-      }
-    }
+    const { score, firstIdx } = scoreContent(terms, file.path.toLowerCase(), lowerTags, content);
 
     if (score > 0) {
       hits.push({ file, score, snippet: snippetAround(content, firstIdx) });
@@ -158,23 +130,4 @@ async function searchVault(app: App, query: string, limit: number, excludePath: 
 
   hits.sort((a, b) => b.score - a.score);
   return hits.slice(0, limit);
-}
-
-function snippetAround(content: string, idx: number): string {
-  if (idx < 0) return content.slice(0, 600);
-  const start = Math.max(0, idx - 200);
-  const end = Math.min(content.length, idx + 600);
-  return (start > 0 ? "…" : "") + content.slice(start, end) + (end < content.length ? "…" : "");
-}
-
-function tokenize(q: string): string[] {
-  return Array.from(
-    new Set(
-      q
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}\s]/gu, " ")
-        .split(/\s+/)
-        .filter((w) => w.length >= 3),
-    ),
-  ).slice(0, 12);
 }

@@ -40,6 +40,33 @@ belong next to it.
 For active development use `npm run dev` (esbuild watch) and symlink the plugin
 folder into a test vault.
 
+## Development & testing
+
+The Obsidian-free logic (SSE parsing, artifact extraction, search scoring) is
+factored into pure modules so it can be unit-tested without a running app.
+
+```bash
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint
+npm test            # vitest (unit tests in test/)
+npm run build       # typecheck + production bundle
+```
+
+CI runs all four on every push/PR (Node 20 & 22) via
+[`.github/workflows/obsidian-plugin-ci.yml`](../.github/workflows/obsidian-plugin-ci.yml).
+
+### Manual test checklist (needs a real vault + API key)
+
+- [ ] Settings: API key saves; model dropdown + custom id both take effect.
+- [ ] Chat streams; **Stop** aborts mid-stream; **New chat** clears history.
+- [ ] Context chips: active note / selection / links / vault-search each attach
+      (the `+ context:` line under your message reflects what was sent).
+- [ ] "Generate implementation plan from current note" yields a `claude-html`
+      artifact that renders inline.
+- [ ] **Save artifact** writes a note that re-renders in Reading view; **Open ↗**
+      opens it in a new window.
+- [ ] Invalid key surfaces a friendly error instead of failing silently.
+
 ## How artifacts work
 
 When Claude returns a fenced ```` ```claude-html ```` block, Companion renders
