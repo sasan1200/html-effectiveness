@@ -29,6 +29,16 @@ export class McpHttpServer {
     return this.server !== null;
   }
 
+  /**
+   * The actual bound port, or null when not listening. When `config.port` is 0
+   * the OS assigns an ephemeral port; this is how callers (and tests) discover
+   * it.
+   */
+  address(): { port: number } | null {
+    const a = this.server?.address();
+    return a && typeof a === "object" ? { port: a.port } : null;
+  }
+
   async start(): Promise<void> {
     if (this.server) return;
     await new Promise<void>((resolve, reject) => {
