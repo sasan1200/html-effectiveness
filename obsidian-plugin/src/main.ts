@@ -228,7 +228,7 @@ export default class ClaudeCompanionPlugin extends Plugin {
     const specPath = normalizePath(`${folder}/${title} — spec.md`);
     const trackerPath = normalizePath(`${folder}/${title} — tracker.md`);
 
-    const input: SpecInput = { title, plan, specPath, trackerPath, tasks };
+    const input: SpecInput = { title, plan, specPath, trackerPath, tasks, vault: this.app.vault.getName() };
 
     // Spec note.
     const specFm = buildFrontmatter({ title: `${title} — spec`, created: new Date().toISOString().slice(0, 10), source: "claude-companion", type: "build-spec", tags: normalizeTags(["claude", "build", "spec"]) });
@@ -244,8 +244,7 @@ export default class ClaudeCompanionPlugin extends Plugin {
     await navigator.clipboard.writeText(command).catch(() => {});
     await this.app.workspace.getLeaf(true).openFile(trackerFile);
 
-    const mcpNote = this.settings.mcpEnabled ? "" : " (enable the MCP bridge in settings so Claude Code can read/write the vault)";
-    new Notice(`Build spec + tracker created. Claude Code command copied to clipboard${mcpNote}.`, 8000);
+    new Notice("Build spec + tracker created. Claude Code command copied — run it in a terminal (requires the official Obsidian CLI).", 8000);
   }
 
   private async ensureFolder(folder: string): Promise<void> {

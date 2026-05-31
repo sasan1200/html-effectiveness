@@ -38,6 +38,8 @@ export interface SpecInput {
   trackerPath: string;
   /** Vault path of the spec note itself. */
   specPath: string;
+  /** Vault name to target with the official Obsidian CLI (`vault=`). Optional. */
+  vault?: string;
   tasks: BuildTask[];
 }
 
@@ -52,21 +54,28 @@ export function specBody(input: SpecInput): string {
   return lines.join("\n");
 }
 
+/** `vault=<name> ` prefix for CLI commands, or "" when no vault is set. */
+function vaultPrefix(input: SpecInput): string {
+  return input.vault ? `vault="${input.vault}" ` : "";
+}
+
 /**
- * The prompt to paste into Claude Code (which already has vault access via the
- * MCP bridge). It tells the harness to read the spec, build, and report
- * progress by updating the tracker note.
+ * The prompt to paste into Claude Code. Claude Code reaches the vault through
+ * the **official Obsidian CLI** (`obsidian` command), reading the spec and
+ * reporting progress by appending to the tracker note.
  */
 export function buildPrompt(input: SpecInput): string {
+  const v = vaultPrefix(input);
   return [
-    `Use the obsidian-vault MCP tools to drive this build.`,
+    `Use the official Obsidian CLI (the \`obsidian\` command) to drive this build.`,
     ``,
-    `1. Read the build spec at "${input.specPath}" (tool: note_read).`,
+    `1. Read the build spec:`,
+    `   obsidian ${v}read path="${input.specPath}"`,
     `2. Implement the tasks in order. Keep changes focused and runnable.`,
-    `3. After each task, update the tracker note "${input.trackerPath}" (tool: note_append) with a line:`,
-    `   "- [x] <task> — <one-line note> (<timestamp>)".`,
+    `3. After each task, append a line to the tracker note:`,
+    `   obsidian ${v}append path="${input.trackerPath}" content="- [x] <task> — <one-line note> (<timestamp>)"`,
     `4. If a task is blocked, append "- [ ] <task> — BLOCKED: <reason>" instead and continue.`,
-    `5. When all tasks are done, append a "## Summary" section to the tracker.`,
+    `5. When all tasks are done, append a "## Summary" section to the tracker the same way.`,
     ``,
     `Build spec title: ${input.title}`,
   ].join("\n");

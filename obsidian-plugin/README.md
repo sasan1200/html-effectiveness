@@ -39,7 +39,8 @@ belong next to it.
   when using an API key, so there are no billing surprises.
 - **Spec → build handoff** — turn a plan note into a **build spec** + a live
   **tracker** (a `claude-html` progress board), and hand it to **Claude Code**:
-  it reads the spec and updates the tracker through the MCP bridge as it builds.
+  it reads the spec and updates the tracker through the **official Obsidian CLI**
+  (`obsidian read` / `obsidian append`) as it builds.
 - **Indexing & tags** — saved artifacts and chats get YAML frontmatter
   (`title`, `tags`, `summary`, `type`) so they show up correctly in the tag
   pane, search, and Dataview. Optional **auto-tagging** uses the local model to

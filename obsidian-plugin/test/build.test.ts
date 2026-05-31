@@ -27,6 +27,7 @@ const input: SpecInput = {
   plan: "- [ ] A\n- [x] B",
   specPath: "Claude/Builds/Comment threads — spec.md",
   trackerPath: "Claude/Builds/Comment threads — tracker.md",
+  vault: "My Vault",
   tasks: [
     { title: "A", done: false },
     { title: "B", done: true },
@@ -44,12 +45,16 @@ describe("specBody", () => {
 });
 
 describe("buildPrompt / claudeCodeBuildCommand", () => {
-  it("references the spec + tracker paths and MCP tools", () => {
+  it("drives the official Obsidian CLI against the spec + tracker paths", () => {
     const p = buildPrompt(input);
-    expect(p).toContain("obsidian-vault MCP");
-    expect(p).toContain(input.specPath);
-    expect(p).toContain(input.trackerPath);
-    expect(p).toContain("note_append");
+    expect(p).toContain("official Obsidian CLI");
+    expect(p).toContain(`obsidian vault="My Vault" read path="${input.specPath}"`);
+    expect(p).toContain(`obsidian vault="My Vault" append path="${input.trackerPath}"`);
+  });
+  it("omits the vault= prefix when no vault is given", () => {
+    const p = buildPrompt({ ...input, vault: undefined });
+    expect(p).toContain(`obsidian read path="${input.specPath}"`);
+    expect(p).not.toContain("vault=");
   });
   it("escapes quotes for a shell-safe -p argument", () => {
     const cmd = claudeCodeBuildCommand(input);
