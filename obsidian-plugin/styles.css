@@ -279,6 +279,30 @@
   background: #3a1610;
 }
 
+/* ---------- settings: MCP connection snippets ---------- */
+.cc-snippet {
+  margin: 6px 0 14px;
+}
+.cc-snippet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.cc-snippet-pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+}
+
 /* ---------- inline artifacts ---------- */
 .cc-artifact {
   border: 1.5px solid var(--cc-gray-300);

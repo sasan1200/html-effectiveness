@@ -52,6 +52,18 @@ export interface PluginSettings {
   artifactBaseTags: string[];
   /** Tags every saved chat gets. */
   chatBaseTags: string[];
+
+  // ----- MCP bridge (vault-as-MCP-server) -----
+  /** Run a local MCP server exposing vault tools to Claude Code / Desktop. */
+  mcpEnabled: boolean;
+  /** Port for the local MCP server (loopback only). */
+  mcpPort: number;
+  /** Bearer token required by MCP clients. */
+  mcpToken: string;
+  /** Allow MCP clients to create/append notes (read is always allowed). */
+  mcpAllowWrites: boolean;
+  /** Default folder for notes created via MCP. */
+  mcpWriteFolder: string;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -82,6 +94,12 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   autoTagOnSave: true,
   artifactBaseTags: ["claude", "artifact"],
   chatBaseTags: ["claude", "chat"],
+
+  mcpEnabled: false,
+  mcpPort: 22360,
+  mcpToken: "",
+  mcpAllowWrites: false,
+  mcpWriteFolder: "Claude/Inbox",
 };
 
 /** Streaming callbacks for a single Claude request. */

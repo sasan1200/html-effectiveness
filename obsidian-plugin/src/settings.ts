@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import type ClaudeCompanionPlugin from "./main";
 import { CLAUDE_MODELS } from "./claude/models";
 import type { ProviderStatus } from "./providers/types";
+import { generateToken, bridgeUrl, claudeCodeCommand, claudeDesktopConfig } from "./mcp/clientConfig";
 
 export class ClaudeCompanionSettingTab extends PluginSettingTab {
   constructor(
@@ -244,6 +245,108 @@ export class ClaudeCompanionSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }),
       );
+
+    this.renderMcpSection(containerEl);
+  }
+
+  private renderMcpSection(containerEl: HTMLElement): void {
+    const s = this.plugin.settings;
+    new Setting(containerEl).setName("Unified bridge (MCP server)").setHeading();
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Expose this vault as a local MCP server so Claude Code and Claude Desktop can search, read, and (optionally) write your notes — unifying all three on one knowledge base. Bound to 127.0.0.1 and protected by a token.",
+    });
+
+    new Setting(containerEl)
+      .setName("Enable MCP server")
+      .setDesc("Runs a local server on the port below. Turn off to stop sharing your vault.")
+      .addToggle((t) =>
+        t.setValue(s.mcpEnabled).onChange(async (v) => {
+          s.mcpEnabled = v;
+          if (v && !s.mcpToken) s.mcpToken = generateToken();
+          await this.plugin.saveSettings();
+          this.display(); // refresh status + snippets
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Port")
+      .setDesc("Local port for the MCP server (loopback only).")
+      .addText((text) =>
+        text.setValue(String(s.mcpPort)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (Number.isFinite(n) && n > 0 && n < 65536) {
+            s.mcpPort = n;
+            await this.plugin.saveSettings();
+          }
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Access token")
+      .setDesc("Required by clients as a bearer token. Keep it secret.")
+      .addText((text) => {
+        text.inputEl.style.width = "260px";
+        text.setValue(s.mcpToken).onChange(async (v) => {
+          s.mcpToken = v.trim();
+          await this.plugin.saveSettings();
+        });
+      })
+      .addButton((btn) =>
+        btn.setButtonText("Regenerate").onClick(async () => {
+          s.mcpToken = generateToken();
+          await this.plugin.saveSettings();
+          this.display();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Allow writes")
+      .setDesc("Let connected clients create and append notes (read & search are always allowed).")
+      .addToggle((t) =>
+        t.setValue(s.mcpAllowWrites).onChange(async (v) => {
+          s.mcpAllowWrites = v;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Write folder")
+      .setDesc("Default folder for notes created via MCP.")
+      .addText((text) =>
+        text.setValue(s.mcpWriteFolder).onChange(async (v) => {
+          s.mcpWriteFolder = v.trim() || "Claude/Inbox";
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    // Live status.
+    const status = containerEl.createDiv({ cls: "cc-conn-status" });
+    const running = this.plugin.mcpRunning();
+    status.toggleClass("is-ok", running && s.mcpEnabled);
+    status.toggleClass("is-err", s.mcpEnabled && !running);
+    if (!s.mcpEnabled) status.setText("Server disabled.");
+    else status.setText(running ? `✓ Running at ${bridgeUrl(s.mcpPort)}` : "✗ Not running — check the port isn't in use.");
+
+    // Connection snippets.
+    if (s.mcpEnabled) {
+      const info = { port: s.mcpPort, token: s.mcpToken };
+      this.codeBlock(containerEl, "Claude Code (run in a terminal):", claudeCodeCommand(info));
+      this.codeBlock(containerEl, "Claude Desktop (add to claude_desktop_config.json):", claudeDesktopConfig(info));
+    }
+  }
+
+  private codeBlock(containerEl: HTMLElement, label: string, code: string): void {
+    const wrap = containerEl.createDiv({ cls: "cc-snippet" });
+    const head = wrap.createDiv({ cls: "cc-snippet-head" });
+    head.createSpan({ text: label });
+    const copy = head.createEl("button", { cls: "cc-action", text: "Copy" });
+    copy.addEventListener("click", () => {
+      void navigator.clipboard.writeText(code);
+      copy.setText("Copied");
+      setTimeout(() => copy.setText("Copy"), 1200);
+    });
+    wrap.createEl("pre", { cls: "cc-snippet-pre" }).createEl("code", { text: code });
   }
 
   private renderStatus(el: HTMLElement, status: ProviderStatus): void {

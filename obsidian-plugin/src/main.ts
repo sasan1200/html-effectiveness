@@ -5,10 +5,14 @@ import { ProviderRouter } from "./providers/router";
 import { DEFAULT_SETTINGS, type PluginSettings } from "./types";
 import { DESIGN_SYSTEM_PROMPT, PLANNING_INSTRUCTION } from "./artifacts/designSystem";
 import { renderArtifactInline } from "./artifacts/renderInline";
+import { McpHttpServer } from "./mcp/server";
+import { VaultTools } from "./mcp/vaultTools";
 
 export default class ClaudeCompanionPlugin extends Plugin {
   settings: PluginSettings = DEFAULT_SETTINGS;
   private _router: ProviderRouter | null = null;
+  private mcpServer: McpHttpServer | null = null;
+  private vaultTools: VaultTools | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -77,10 +81,14 @@ export default class ClaudeCompanionPlugin extends Plugin {
     });
 
     this.addSettingTab(new ClaudeCompanionSettingTab(this.app, this));
+
+    // Start the MCP bridge if enabled (deferred so it doesn't block load).
+    this.app.workspace.onLayoutReady(() => void this.syncMcpServer());
   }
 
   onunload(): void {
-    // Obsidian detaches the view's leaves automatically.
+    void this.mcpServer?.stop();
+    this.mcpServer = null;
   }
 
   // ---------- settings ----------
@@ -99,6 +107,42 @@ export default class ClaudeCompanionPlugin extends Plugin {
     // Rebuild providers if any credentials/hosts changed.
     this._router = null;
     this.refreshViews();
+    await this.syncMcpServer();
+  }
+
+  // ---------- MCP bridge ----------
+
+  /** Start, stop, or restart the MCP server to match current settings. */
+  async syncMcpServer(): Promise<void> {
+    const s = this.settings;
+    // Always tear down so a port/token/writes change takes effect cleanly.
+    if (this.mcpServer) {
+      await this.mcpServer.stop();
+      this.mcpServer = null;
+    }
+    if (!s.mcpEnabled) return;
+
+    if (!this.vaultTools) {
+      this.vaultTools = new VaultTools(this.app, { allowWrites: s.mcpAllowWrites, defaultFolder: s.mcpWriteFolder });
+    } else {
+      this.vaultTools.setOptions({ allowWrites: s.mcpAllowWrites, defaultFolder: s.mcpWriteFolder });
+    }
+
+    const server = new McpHttpServer(
+      { port: s.mcpPort, token: s.mcpToken, serverInfo: { name: "obsidian-vault", version: "0.2.0" } },
+      this.vaultTools,
+      (level, message) => (level === "error" ? console.error("[Claude Companion MCP]", message) : console.log("[Claude Companion MCP]", message)),
+    );
+    try {
+      await server.start();
+      this.mcpServer = server;
+    } catch (e) {
+      new Notice(`MCP bridge failed to start on port ${s.mcpPort}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  mcpRunning(): boolean {
+    return this.mcpServer?.isRunning() ?? false;
   }
 
   refreshViews(): void {
